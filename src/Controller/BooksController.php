@@ -42,12 +42,8 @@ final class BooksController extends AbstractController
         return $this->json($books);
     }
 
-    #[Route('/api/books', name: 'create_book', methods: ['POST'])]
-    public function createBook(
-        Request $request,
-        EntityManagerInterface $entityManager,
-    ): JsonResponse {
-        $data = json_decode($request->getContent(), true);
+    private function validateBookData(array $data, Request $request): JsonResponse|bool
+    {
         if (empty($data['title']) || empty($data['author']) || empty($data['isbn'])
             || empty($data['publication_year'])) {
             return new JsonResponse([
@@ -55,7 +51,7 @@ final class BooksController extends AbstractController
             ], Response::HTTP_BAD_REQUEST);
         }
         if ($data['publication_year'] > intval(date('Y'))
-        || $data['publication_year'] < 1900) {
+            || $data['publication_year'] < 1900) {
             return new JsonResponse([
                 'error' => 'Publication year must be between 1900 and current year',
             ], Response::HTTP_BAD_REQUEST);
@@ -71,11 +67,33 @@ final class BooksController extends AbstractController
                 'error' => 'Not authorized',
             ], Response::HTTP_BAD_REQUEST);
         }
+
+        return true;
+    }
+
+    private function createNewBook(array $data): Book
+    {
         $book = new Book();
         $book->setTitle($data['title']);
         $book->setAuthor($data['author']);
         $book->setIsbn($data['isbn']);
         $book->setPublicationYear($data['publication_year']);
+
+        return $book;
+    }
+
+    #[Route('/api/books', name: 'create_book', methods: ['POST'])]
+    public function createBook(
+        Request $request,
+        EntityManagerInterface $entityManager,
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true);
+        $validationResult = $this->validateBookData($data, $request);
+        if (true !== $validationResult) {
+            return $validationResult;
+        }
+
+        $book = $this->createNewBook($data);
         $entityManager->persist($book);
         $entityManager->flush();
 
